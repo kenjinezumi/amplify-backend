@@ -56,8 +56,7 @@ gcloud pubsub topics create amplify
 Build & push the docker image: 
 
 ```
-docker build -t gcr.io/algomate-400914/watcher .
-docker push gcr.io/algomate-400914/watcher
+gcloud builds submit --tag gcr.io/amplify
 
 ```
 
@@ -75,9 +74,15 @@ gcloud projects add-iam-policy-binding your-project-id \
 Deploy: 
 
 ```
-gcloud run deploy watcher --image gcr.io/algomate-400914/watcher \
---platform managed --region=us-central1 \
---set-env-vars DRIVE_FOLDER_ID="1eQ2OLN1PAOkeZYKZQcN-GNGYNQ62iBpf",PUBSUB_TOPIC="amplify",CHANNEL_ID="amplify-watcher",WEBHOOK_URL="https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
+ls -la /root/
+./watcher
+
 
 ```
 
+gcloud run deploy watcher  \
+--platform "managed" --region=us-central1 \
+--set-env-vars DRIVE_FOLDER_ID="1eQ2OLN1PAOkeZYKZQcN-GNGYNQ62iBpf",PUBSUB_TOPIC="amplify",CHANNEL_ID="amplify-watcher",WEBHOOK_URL="https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
+
+
+docker run   gcr.io/algomate-400914/watcher

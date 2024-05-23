@@ -1,28 +1,30 @@
-# Start from the official Golang base image
+# Use the official Golang image to create a build artifact.
+# This is based on Debian and sets the GOPATH to /go.
 FROM golang:1.20 as builder
 
-# Set the Current Working Directory inside the container
+# Create and change to the app directory.
 WORKDIR /app
 
-# Copy go.mod and go.sum files
-COPY go.mod go.sum ./
+# Copy go mod and sum files.
+COPY go.mod .
+COPY go.sum .
 
-# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
+# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed.
 RUN go mod download
 
-# Copy the source from the current directory to the Working Directory inside the container
+# Copy the source code.
 COPY . .
 
-# Build the Go app
-RUN go build -o watcher .
+# Build the Go app.
+RUN go build -v -o main .
 
-# Start a new stage from scratch
-FROM alpine:latest
+# Use a smaller base image for the final build.
+# Use distroless as minimal base image to package the binary.
+# Refer to more examples here: https://github.com/GoogleContainerTools/distroless
+FROM gcr.io/distroless/base-debian10
 
-WORKDIR /root/
+# Copy the binary from the builder.
+COPY --from=builder /app/main /main
 
-# Copy the Pre-built binary file from the previous stage
-COPY --from=builder /app/watcher .
-
-# Command to run the executable
-CMD ["./watcher"]
+# Run the web service on container startup.
+CMD ["/main"]

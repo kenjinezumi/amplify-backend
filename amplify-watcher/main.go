@@ -50,6 +50,11 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Watcher is active and running.")
 	})
+
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "ok")
+	})
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080" // Default port in local environment if not set
