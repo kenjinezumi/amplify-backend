@@ -19,20 +19,23 @@ func main() {
 		log.Fatalf("Unable to retrieve Drive client: %v", err)
 	}
 
-	// Get the folder ID and Pub/Sub topic from environment variables
-	folderID := os.Getenv("DRIVE_FOLDER_ID")
-	topic := os.Getenv("PUBSUB_TOPIC")
+	// Get configuration from environment variables
+	folderID := os.Getenv("DRIVE_FOLDER_ID") // Unique folder identifier
+	topic := os.Getenv("PUBSUB_TOPIC")       // Pubsub topic
+	channelID := os.Getenv("CHANNEL_ID")     // Channel id for notifications in case there's another one
+	webhookURL := os.Getenv("WEBHOOK_URL")   // Cloud function URL
 
-	if folderID == "" || topic == "" {
-		log.Fatalf("Environment variables DRIVE_FOLDER_ID and PUBSUB_TOPIC must be set")
+	// Check if all required environment variables are set
+	if folderID == "" || topic == "" || channelID == "" || webhookURL == "" {
+		log.Fatal("Environment variables DRIVE_FOLDER_ID, PUBSUB_TOPIC, CHANNEL_ID, and WEBHOOK_URL must be set")
 	}
 
 	// Create the watch request
 	watchRequest := &drive.Channel{
-		Id:      "unique-channel-id", // Unique identifier for the watch
+		Id:      channelID, // Unique identifier for the watch
 		Type:    "web_hook",
-		Address: "https://your_cloud_function_url", // Replace with your Cloud Function URL
-		Token:   topic,                             // Pub/Sub topic
+		Address: webhookURL, // Cloud Function URL
+		Token:   topic,      // Pub/Sub topic
 	}
 
 	// Set up the watch on the folder

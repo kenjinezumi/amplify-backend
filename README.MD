@@ -23,13 +23,14 @@ The Google Drive Watcher monitors a specified Google Drive folder and sends a Pu
 
 ## Deployement 
 
-Run the cloud function:
+### Cloud function:
 
 ```
 gcloud functions deploy amplify-cloud-function \
   --runtime go120 \
   --trigger-http \
   --allow-unauthenticated \
+  --entry-point=AmplifyFunction \
   --set-env-vars TEMP_FOLDER_ID=temp,OUTPUT_FOLDER_ID=output,INPUT_FOLDER_ID=input \
   --project=algomate-400914
 
@@ -42,3 +43,13 @@ gcloud projects add-iam-policy-binding algomate-400914\
   --member=serviceAccount:algomate-400914@appspot.gserviceaccount.com \
   --role=roles/artifactregistry.reader
 ```
+
+### Cloud run (watcher)
+
+Create a pub/sub topic for amplify if it does not exist: 
+
+```
+gcloud pubsub topics create amplify
+
+```
+
