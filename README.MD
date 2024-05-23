@@ -53,10 +53,12 @@ gcloud pubsub topics create amplify
 
 ```
 
-Build the docker image: 
+Build & push the docker image: 
 
 ```
 docker build -t gcr.io/algomate-400914/watcher .
+docker push gcr.io/algomate-400914/watcher
+
 ```
 
 If you face issues with auth run the following: 

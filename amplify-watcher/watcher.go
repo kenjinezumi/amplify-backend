@@ -21,10 +21,10 @@ func main() {
 	}
 
 	// Get configuration from environment variables
-	folderID := os.Getenv("DRIVE_FOLDER_ID") // Unique folder identifier
-	topic := os.Getenv("PUBSUB_TOPIC")       // Pubsub topic
-	channelID := os.Getenv("CHANNEL_ID")     // Channel id for notifications
-	webhookURL := os.Getenv("WEBHOOK_URL")   // Cloud function URL
+	folderID := os.Getenv("DRIVE_FOLDER_ID")
+	topic := os.Getenv("PUBSUB_TOPIC")
+	channelID := os.Getenv("CHANNEL_ID")
+	webhookURL := os.Getenv("WEBHOOK_URL")
 
 	// Check if all required environment variables are set
 	if folderID == "" || topic == "" || channelID == "" || webhookURL == "" {
@@ -33,10 +33,10 @@ func main() {
 
 	// Create the watch request
 	watchRequest := &drive.Channel{
-		Id:      channelID, // Unique identifier for the watch
+		Id:      channelID,
 		Type:    "web_hook",
-		Address: webhookURL, // Cloud Function URL
-		Token:   topic,      // Pub/Sub topic
+		Address: webhookURL,
+		Token:   topic,
 	}
 
 	// Set up the watch on the folder
@@ -44,7 +44,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to set up watch: %v", err)
 	}
-
 	fmt.Println("Watch set up successfully")
 
 	// Start HTTP server for health checks and to meet Cloud Run requirements
