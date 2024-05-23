@@ -6,7 +6,7 @@ This repository contains a Go-based Google Drive watcher and a Google Cloud Func
 
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
-
+3. [Deployment](#deployment)
 
 ## Overview
 
@@ -21,3 +21,16 @@ The Google Drive Watcher monitors a specified Google Drive folder and sends a Pu
 - Google Drive API enabled in your Google Cloud project
 - Pub/Sub API enabled in your Google Cloud project
 
+## Deployement 
+
+Run the cloud function:
+
+```
+gcloud functions deploy amplify-cloud-function \
+  --runtime go116 \
+  --trigger-http \
+  --allow-unauthenticated \
+  --set-env-vars TEMP_FOLDER_ID=temp,OUTPUT_FOLDER_ID=output,INPUT_FOLDER_ID=input \
+  --project=amplify-424209
+
+```

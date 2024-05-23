@@ -72,11 +72,34 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fileID := m.Data
+	inputFolderID := os.Getenv("INPUT_FOLDER_ID")   // Set these as environment variables
 	tempFolderID := os.Getenv("TEMP_FOLDER_ID")     // Set these as environment variables
 	outputFolderID := os.Getenv("OUTPUT_FOLDER_ID") // Set these as environment variables
 
-	if tempFolderID == "" || outputFolderID == "" {
+	if inputFolderID == "" || tempFolderID == "" || outputFolderID == "" {
 		http.Error(w, "Folder IDs are not set", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify the file is in the input folder
+	file, err := driveService.Files.Get(fileID).Fields("parents").Do()
+	if err != nil {
+		log.Printf("Failed to get file metadata: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to get file metadata: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	inInputFolder := false
+	for _, parent := range file.Parents {
+		if parent == inputFolderID {
+			inInputFolder = true
+			break
+		}
+	}
+
+	if !inInputFolder {
+		log.Printf("File %s is not in the input folder, ignoring.", fileID)
+		http.Error(w, "File is not in the input folder", http.StatusBadRequest)
 		return
 	}
 
