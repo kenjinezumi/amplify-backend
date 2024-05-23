@@ -27,10 +27,18 @@ Run the cloud function:
 
 ```
 gcloud functions deploy amplify-cloud-function \
-  --runtime go116 \
+  --runtime go120 \
   --trigger-http \
   --allow-unauthenticated \
   --set-env-vars TEMP_FOLDER_ID=temp,OUTPUT_FOLDER_ID=output,INPUT_FOLDER_ID=input \
-  --project=amplify-424209
+  --project=algomate-400914
 
+```
+
+If the role for artifact is missing in GCP: 
+
+```
+gcloud projects add-iam-policy-binding algomate-400914\
+  --member=serviceAccount:algomate-400914@appspot.gserviceaccount.com \
+  --role=roles/artifactregistry.reader
 ```

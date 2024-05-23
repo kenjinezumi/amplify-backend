@@ -1,4 +1,4 @@
-module amplify-cloud-function
+module amplify-cloud-function.com/amplify-cloud-function
 
 go 1.20
 
