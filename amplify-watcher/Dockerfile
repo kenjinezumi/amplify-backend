@@ -14,6 +14,9 @@ RUN go mod download
 # Copy the source code.
 COPY . .
 
+# List the contents of the directory for debugging purposes
+RUN ls -la
+
 # Build the Go app.
 RUN go build -v -o main .
 
@@ -23,12 +26,17 @@ FROM ubuntu:22.04
 # Install necessary packages
 RUN apt-get update && apt-get install -y ca-certificates
 
+# Create the /app directory
+RUN mkdir /app
+
 # Copy the binary from the builder.
-COPY --from=builder /app/main /main
+COPY --from=builder /app/main /app/main
 
 # Copy the service account key file into the image.
-# Assuming the service-account-key.json is in the same directory as the Dockerfile.
 COPY ./service-account-key.json /app/service-account-key.json
+
+# List the contents of the directory for debugging purposes.
+RUN ls -la /app
 
 # Set the environment variable for Google Cloud credentials.
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
@@ -37,4 +45,4 @@ ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
 EXPOSE 8080
 
 # Run the web service on container startup.
-CMD ["/main"]
+CMD ["/app/main"]

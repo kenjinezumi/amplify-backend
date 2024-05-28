@@ -67,7 +67,7 @@ gcloud run deploy amplify-watcher-service \
   --region us-central1 \
   --platform managed \
   --allow-unauthenticated \
-  --set-env-vars "PROJECT_ID=algomate-400914,DRIVE_FOLDER_ID=1FGmm27O_8D5DVr2qLGWrGgQEZGTEN5CD,PUBSUB_TOPIC=amplify,CHANNEL_ID=amplify-watcher,WEBHOOK_URL=https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
+  --set-env-vars "PROJECT_ID=algomate-400914,DRIVE_FOLDER_ID=1FGmm27O_8D5DVr2qLGWrGgQEZGTEN5CD,PUBSUB_TOPIC=amplify,WEBHOOK_URL=https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
 
 
 

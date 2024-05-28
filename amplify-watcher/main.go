@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 
-	"golang.org/x/oauth2/google"
+	"github.com/google/uuid"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
@@ -39,31 +39,28 @@ func main() {
 	log.Printf("Using credentials from: %s", credsFile)
 
 	// Initialize Google Drive service with service account credentials
-	creds, err := google.FindDefaultCredentials(ctx, drive.DriveScope)
-	if err != nil {
-		log.Fatalf("Unable to find default credentials: %v", err)
-	}
-
 	driveService, err := drive.NewService(ctx, option.WithCredentialsFile(credsFile))
 	if err != nil {
 		log.Fatalf("Unable to retrieve Drive client: %v", err)
 	}
 
 	// Log the service account being used
-	log.Printf("Using service account: %s", creds.ProjectID)
+	log.Printf("Using service account: %s", credsFile)
 
 	// Get configuration from environment variables
 	folderID := os.Getenv("DRIVE_FOLDER_ID")
 	topic := os.Getenv("PUBSUB_TOPIC")
-	channelID := os.Getenv("CHANNEL_ID")
 	webhookURL := os.Getenv("WEBHOOK_URL")
 
 	// Check if all required environment variables are set
-	if folderID == "" || topic == "" || channelID == "" || webhookURL == "" {
-		log.Fatal("Environment variables DRIVE_FOLDER_ID, PUBSUB_TOPIC, CHANNEL_ID, and WEBHOOK_URL must be set")
+	if folderID == "" || topic == "" || webhookURL == "" {
+		log.Fatal("Environment variables DRIVE_FOLDER_ID, PUBSUB_TOPIC, and WEBHOOK_URL must be set")
 	}
 
-	log.Printf("Environment variables:\nDRIVE_FOLDER_ID=%s\nPUBSUB_TOPIC=%s\nCHANNEL_ID=%s\nWEBHOOK_URL=%s\n", folderID, topic, channelID, webhookURL)
+	log.Printf("Environment variables:\nDRIVE_FOLDER_ID=%s\nPUBSUB_TOPIC=%s\nWEBHOOK_URL=%s\n", folderID, topic, webhookURL)
+
+	// Generate a unique channel ID
+	channelID := uuid.New().String()
 
 	// Create the watch request
 	watchRequest := &drive.Channel{
@@ -83,12 +80,22 @@ func main() {
 	// Start HTTP server for handling notifications and health checks
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received request at /")
+
+		// Log headers and body for debugging
+		for name, values := range r.Header {
+			for _, value := range values {
+				log.Printf("Header: %s: %s", name, value)
+			}
+		}
+
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("Error reading request body: %v", err)
 			http.Error(w, "Unable to read request body", http.StatusBadRequest)
 			return
 		}
+
+		log.Printf("Request body: %s", string(body))
 
 		var notification Notification
 		if err := json.Unmarshal(body, &notification); err != nil {
@@ -106,6 +113,8 @@ func main() {
 			http.Error(w, "Unable to retrieve file metadata", http.StatusInternalServerError)
 			return
 		}
+
+		log.Printf("File metadata: name=%s", file.Name)
 
 		fileInfo := FileInfo{
 			FileName:   file.Name,
