@@ -129,12 +129,14 @@ func main() {
 		log.Printf("Received notification for resource ID: %s", notification.ResourceID)
 
 		// Retrieve the file metadata
-		file, err := driveService.Files.Get(notification.ResourceID).Fields("name, mimeType, modifiedTime").Do()
+		file, err := driveService.Files.Get(notification.ResourceID).Fields("id, name, mimeType, modifiedTime").Do()
 		if err != nil {
 			log.Printf("Error retrieving file metadata: %v", err)
 			http.Error(w, "Unable to retrieve file metadata", http.StatusInternalServerError)
 			return
 		}
+
+		log.Printf("File metadata retrieved: ID=%s, Name=%s, MimeType=%s", file.Id, file.Name, file.MimeType)
 
 		// Check if the file is a Word document
 		if file.MimeType != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && file.MimeType != "application/msword" {
@@ -155,11 +157,17 @@ func main() {
 			return
 		}
 
-		topic.Publish(ctx, &pubsub.Message{
+		result := topic.Publish(ctx, &pubsub.Message{
 			Data: fileInfoBytes,
 		})
 
-		log.Printf("Published message for file: %s", file.Name)
+		// Block until the result is returned and log server-generated message IDs.
+		id, err := result.Get(ctx)
+		if err != nil {
+			log.Printf("Failed to publish message: %v", err)
+		}
+		log.Printf("Published message with ID: %s for file: %s", id, file.Name)
+
 		fmt.Fprintln(w, "Notification received and processed.")
 	})
 
@@ -219,11 +227,17 @@ func listFiles(ctx context.Context, driveService *drive.Service, folderID string
 				continue
 			}
 
-			topic.Publish(ctx, &pubsub.Message{
+			result := topic.Publish(ctx, &pubsub.Message{
 				Data: fileInfoBytes,
 			})
 
-			log.Printf("Published message for file: %s", file.Name)
+			// Block until the result is returned and log server-generated message IDs.
+			id, err := result.Get(ctx)
+			if err != nil {
+				log.Printf("Failed to publish message: %v", err)
+			}
+			log.Printf("Published message with ID: %s for file: %s", id, file.Name)
+
 			// } else {
 			// 	log.Printf("File ID: %s, Name: %s is not a Word document, ignoring.", file.Id, file.Name)
 			// }

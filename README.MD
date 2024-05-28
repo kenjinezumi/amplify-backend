@@ -28,11 +28,13 @@ The Google Drive Watcher monitors a specified Google Drive folder and sends a Pu
 ```
 gcloud functions deploy amplify-cloud-function \
   --runtime go120 \
-  --trigger-http \
+  --trigger-topic amplify \
   --allow-unauthenticated \
   --entry-point=AmplifyFunction \
-  --set-env-vars INPUT_FOLDER_ID=1FGmm27O_8D5DVr2qLGWrGgQEZGTEN5CD,TEMP_FOLDER_ID=1CcjlKfutvuTh7cG9HBcvVCVtO7i6XiAs,OUTPUT_FOLDER_ID=1Exp2CLZXg6uQMrMILvqYUrMIq4diZSA4,GOOGLE_APPLICATION_CREDENTIALS="./service-account-key.json" \
+  --set-env-vars INPUT_FOLDER_ID=1FGmm27O_8D5DVr2qLGWrGgQEZGTEN5CD,TEMP_FOLDER_ID=1CcjlKfutvuTh7cG9HBcvVCVtO7i6XiAs,OUTPUT_FOLDER_ID=1Exp2CLZXg6uQMrMILvqYUrMIq4diZSA4,GOOGLE_APPLICATION_CREDENTIALS="./service-account-key.json",DRIVE_ID="your_drive_id" \
+  --source=. \
   --project=algomate-400914
+
 
 ```
 
@@ -50,6 +52,9 @@ Create a pub/sub topic for amplify if it does not exist:
 
 ```
 gcloud pubsub topics create amplify
+gcloud pubsub topics create amplify-dead-letter-topic
+gcloud pubsub subscriptions create amplify-dead-letter-subscription --topic=amplify-dead-letter-topic
+
 
 ```
 
