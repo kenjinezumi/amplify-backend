@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 	"google.golang.org/api/drive/v3"
@@ -28,17 +27,16 @@ func init() {
 		log.Fatalf("Unable to retrieve Drive client: %v", err)
 	}
 	driveService = service
-
 }
 
 type PubSubMessage struct {
 	Data string `json:"data"`
 }
 
-func processFile(fileID string) error {
-	time.Sleep(2 * time.Second)
-	log.Printf("Processing file %s", fileID)
-	return nil
+func processData(data []byte) ([]byte, error) {
+	// Dummy function to process the data
+	// For now, it just returns the same data
+	return data, nil
 }
 
 func moveFile(fileID, folderID string) error {
@@ -54,12 +52,12 @@ func moveFile(fileID, folderID string) error {
 	return nil
 }
 
-// Google Cloud Function handler
-func AmplifyFunction(w http.ResponseWriter, r *http.Request) {
+// AmplifyFunction is the Google Cloud Function handler
+func AmplifyFunction(ctx context.Context, e PubSubMessage) error {
 	var m PubSubMessage
-	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
-		return
+	if err := json.Unmarshal([]byte(e.Data), &m); err != nil {
+		log.Printf("Error parsing PubSub message: %v", err)
+		return err
 	}
 
 	fileID := m.Data
@@ -68,17 +66,17 @@ func AmplifyFunction(w http.ResponseWriter, r *http.Request) {
 	outputFolderID := os.Getenv("OUTPUT_FOLDER_ID")
 
 	if inputFolderID == "" || tempFolderID == "" || outputFolderID == "" {
-		http.Error(w, "Folder IDs are not set", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("Folder IDs are not set")
 	}
 
-	file, err := driveService.Files.Get(fileID).Fields("parents").Do()
+	// Retrieve the file metadata
+	file, err := driveService.Files.Get(fileID).Fields("parents, name, mimeType").Do()
 	if err != nil {
 		log.Printf("Failed to get file metadata: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to get file metadata: %v", err), http.StatusInternalServerError)
-		return
+		return err
 	}
 
+	// Check if the file is in the input folder
 	inInputFolder := false
 	for _, parent := range file.Parents {
 		if parent == inputFolderID {
@@ -89,28 +87,58 @@ func AmplifyFunction(w http.ResponseWriter, r *http.Request) {
 
 	if !inInputFolder {
 		log.Printf("File %s is not in the input folder, ignoring.", fileID)
-		http.Error(w, "File is not in the input folder", http.StatusBadRequest)
-		return
+		return fmt.Errorf("file is not in the input folder")
 	}
 
+	// Move the file to the temporary folder
 	if err := moveFile(fileID, tempFolderID); err != nil {
 		log.Printf("Failed to move file to temp folder: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to move file to temp folder: %v", err), http.StatusInternalServerError)
-		return
+		return err
 	}
 
-	if err := processFile(fileID); err != nil {
+	// Download the file content from the temporary folder
+	resp, err := driveService.Files.Get(fileID).Download()
+	if err != nil {
+		log.Printf("Failed to download file: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	fileData, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read file content: %v", err)
+		return err
+	}
+
+	// Process the file data
+	processedData, err := processData(fileData)
+	if err != nil {
 		log.Printf("Failed to process file: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to process file: %v", err), http.StatusInternalServerError)
-		return
+		return err
 	}
 
-	if err := moveFile(fileID, outputFolderID); err != nil {
-		log.Printf("Failed to move file to output folder: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to move file to output folder: %v", err), http.StatusInternalServerError)
-		return
+	// Save the processed data to a temporary file
+	tempFileName := fmt.Sprintf("/tmp/%s", file.Name)
+	err = ioutil.WriteFile(tempFileName, processedData, 0644)
+	if err != nil {
+		log.Printf("Failed to write processed data to temporary file: %v", err)
+		return err
 	}
+
+	// Upload the processed file to the output folder
+	fileMetadata := &drive.File{
+		Name:    file.Name,
+		Parents: []string{outputFolderID},
+	}
+
+	newFile, err := driveService.Files.Create(fileMetadata).Media(fileData).Do()
+	if err != nil {
+		log.Printf("Failed to upload processed file: %v", err)
+		return err
+	}
+
+	log.Printf("Uploaded processed file: %s", newFile.Id)
 
 	log.Printf("File %s processed successfully", fileID)
-	fmt.Fprintln(w, "File processed successfully")
+	return nil
 }

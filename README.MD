@@ -31,7 +31,7 @@ gcloud functions deploy amplify-cloud-function \
   --trigger-http \
   --allow-unauthenticated \
   --entry-point=AmplifyFunction \
-  --set-env-vars TEMP_FOLDER_ID=temp,OUTPUT_FOLDER_ID=output,INPUT_FOLDER_ID=input \
+  --set-env-vars INPUT_FOLDER_ID=1FGmm27O_8D5DVr2qLGWrGgQEZGTEN5CD,TEMP_FOLDER_ID=1CcjlKfutvuTh7cG9HBcvVCVtO7i6XiAs,OUTPUT_FOLDER_ID=1Exp2CLZXg6uQMrMILvqYUrMIq4diZSA4,GOOGLE_APPLICATION_CREDENTIALS="./service-account-key.json" \
   --project=algomate-400914
 
 ```
