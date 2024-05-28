@@ -38,8 +38,16 @@ COPY ./service-account-key.json /app/service-account-key.json
 # List the contents of the directory for debugging purposes.
 RUN ls -la /app
 
+# Define build arguments
+ARG DRIVE_FOLDER_ID
+ARG PUBSUB_TOPIC
+ARG WEBHOOK_URL
+
 # Set the environment variable for Google Cloud credentials.
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
+ENV DRIVE_FOLDER_ID $DRIVE_FOLDER_ID
+ENV PUBSUB_TOPIC $PUBSUB_TOPIC
+ENV WEBHOOK_URL $WEBHOOK_URL
 
 # Expose the port for Cloud Run
 EXPOSE 8080

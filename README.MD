@@ -59,7 +59,13 @@ Build & push the docker image:
 gcloud iam service-accounts keys create service-account-key.json \
     --iam-account amplify@algomate-400914.iam.gserviceaccount.com
 
-docker build -t gcr.io/algomate-400914/amplify-watcher .
+docker build -t amplify-watcher \
+  --build-arg GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json \
+  --build-arg DRIVE_FOLDER_ID=1FGmm27O_8D5DVr2qLGWrGgQEZGTEN5CD \
+  --build-arg PUBSUB_TOPIC=amplify \
+  --build-arg WEBHOOK_URL=https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function \
+  .
+
 docker push gcr.io/algomate-400914/amplify-watcher
 
 gcloud run deploy amplify-watcher-service \
