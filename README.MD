@@ -56,9 +56,27 @@ gcloud pubsub topics create amplify
 Build & push the docker image: 
 
 ```
-gcloud builds submit --tag gcr.io/amplify
+docker build -t gcr.io/algomate-400914/go-builder:1.20 .
+docker push gcr.io/algomate-400914/go-builder:1.20
+
+gcloud builds submit --config cloudbuild.yaml --substitutions _PROJECT_ID=algomate-400914,_IMAGE_NAME=amplify-watcher,_SERVICE_NAME=amplify-watcher-service,_REGION=us-central1,_DRIVE_FOLDER_ID="1eQ2OLN1PAOkeZYKZQcN-GNGYNQ62iBpf",_PUBSUB_TOPIC="amplify",_CHANNEL_ID="amplify-watcher",_WEBHOOK_URL="https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
+
+
+
 
 ```
+PROJECT_NUMBER=$(gcloud projects describe algomate-400914 --format="value(projectNumber)")
+gcloud projects add-iam-policy-binding algomate-400914 \
+  --member=serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com \
+  --role=roles/run.admin
+
+gcloud projects add-iam-policy-binding algomate-400914 \
+  --member=serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com \
+  --role=roles/viewer
+
+gcloud projects add-iam-policy-binding algomate-400914 \
+  --member=serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com \
+  --role="roles/iam.serviceAccountUser"
 
 If you face issues with auth run the following: 
 

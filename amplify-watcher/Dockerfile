@@ -1,5 +1,4 @@
 # Use the official Golang image to create a build artifact.
-# This is based on Debian and sets the GOPATH to /go.
 FROM golang:1.20 as builder
 
 # Create and change to the app directory.
@@ -18,10 +17,11 @@ COPY . .
 # Build the Go app.
 RUN go build -v -o main .
 
-# Use a smaller base image for the final build.
-# Use distroless as minimal base image to package the binary.
-# Refer to more examples here: https://github.com/GoogleContainerTools/distroless
-FROM gcr.io/distroless/base-debian10
+# Use Ubuntu 22.04 as the base image for the final build to ensure the correct glibc version.
+FROM ubuntu:22.04
+
+# Install necessary packages
+RUN apt-get update && apt-get install -y ca-certificates
 
 # Copy the binary from the builder.
 COPY --from=builder /app/main /main
