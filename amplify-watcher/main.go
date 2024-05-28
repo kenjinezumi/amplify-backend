@@ -42,7 +42,7 @@ func main() {
 	// Set up the watch on the folder
 	_, err = driveService.Files.Watch(folderID, watchRequest).Do()
 	if err != nil {
-		log.Fatalf("Unable to set up watch: %v", err)
+		log.Fatalf("Unable to set up watch: %v. Please check if the folder ID is correct and the service account has access to the folder.", err)
 	}
 	fmt.Println("Watch set up successfully")
 

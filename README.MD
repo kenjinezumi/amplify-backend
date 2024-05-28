@@ -56,10 +56,16 @@ gcloud pubsub topics create amplify
 Build & push the docker image: 
 
 ```
-docker build -t gcr.io/algomate-400914/go-builder:1.20 .
-docker push gcr.io/algomate-400914/go-builder:1.20
+docker build -t gcr.io/algomate-400914/amplify-watcher .
+docker push gcr.io/algomate-400914/amplify-watcher
 
-gcloud builds submit --config cloudbuild.yaml --substitutions _PROJECT_ID=algomate-400914,_IMAGE_NAME=amplify-watcher,_SERVICE_NAME=amplify-watcher-service,_REGION=us-central1,_DRIVE_FOLDER_ID="1eQ2OLN1PAOkeZYKZQcN-GNGYNQ62iBpf",_PUBSUB_TOPIC="amplify",_CHANNEL_ID="amplify-watcher",_WEBHOOK_URL="https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
+gcloud run deploy amplify-watcher-service \
+  --image gcr.io/algomate-400914/amplify-watcher \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --set-env-vars "PROJECT_ID=algomate-400914,DRIVE_FOLDER_ID=1eQ2OLN1PAOkeZYKZQcN-GNGYNQ62iBpf,PUBSUB_TOPIC=amplify,CHANNEL_ID=amplify-watcher,WEBHOOK_URL=https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
+
 
 
 
@@ -97,10 +103,3 @@ ls -la /root/
 
 
 ```
-
-gcloud run deploy watcher  \
---platform "managed" --region=us-central1 \
---set-env-vars DRIVE_FOLDER_ID="1eQ2OLN1PAOkeZYKZQcN-GNGYNQ62iBpf",PUBSUB_TOPIC="amplify",CHANNEL_ID="amplify-watcher",WEBHOOK_URL="https://us-central1-algomate-400914.cloudfunctions.net/amplify-cloud-function"
-
-
-docker run   gcr.io/algomate-400914/watcher
