@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -20,28 +22,23 @@ func main() {
 	// Get the credentials file path from the environment variable
 	credsFile := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 	if credsFile == "" {
-		log.Println("GOOGLE_APPLICATION_CREDENTIALS environment variable not set, using default application credentials")
-	} else {
-		log.Printf("Using credentials from: %s", credsFile)
+		log.Fatal("GOOGLE_APPLICATION_CREDENTIALS environment variable must be set")
 	}
+	log.Printf("Using credentials from: %s", credsFile)
 
-	// Initialize Google Drive service with default credentials
+	// Initialize Google Drive service with service account credentials
 	creds, err := google.FindDefaultCredentials(ctx, drive.DriveScope)
 	if err != nil {
 		log.Fatalf("Unable to find default credentials: %v", err)
 	}
 
-	driveService, err := drive.NewService(ctx, option.WithCredentials(creds))
+	driveService, err := drive.NewService(ctx, option.WithCredentialsFile(credsFile))
 	if err != nil {
 		log.Fatalf("Unable to retrieve Drive client: %v", err)
 	}
 
 	// Log the service account being used
-	serviceAccount := creds.ProjectID
-	if serviceAccount == "" {
-		serviceAccount = "unknown (default credentials used)"
-	}
-	log.Printf("Using service account: %s", serviceAccount)
+	log.Printf("Using service account: %s", credsFile)
 
 	// Get configuration from environment variables
 	folderID := os.Getenv("DRIVE_FOLDER_ID")
@@ -53,8 +50,6 @@ func main() {
 	if folderID == "" || topic == "" || channelID == "" || webhookURL == "" {
 		log.Fatal("Environment variables DRIVE_FOLDER_ID, PUBSUB_TOPIC, CHANNEL_ID, and WEBHOOK_URL must be set")
 	}
-
-	log.Printf("Environment variables:\nDRIVE_FOLDER_ID=%s\nPUBSUB_TOPIC=%s\nCHANNEL_ID=%s\nWEBHOOK_URL=%s\n", folderID, topic, channelID, webhookURL)
 
 	// Create the watch request
 	watchRequest := &drive.Channel{
@@ -71,10 +66,35 @@ func main() {
 	}
 	log.Println("Watch set up successfully")
 
-	// Start HTTP server for health checks and to meet Cloud Run requirements
+	// Start HTTP server for handling notifications and health checks
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received request at /")
-		fmt.Fprintln(w, "Watcher is active and running.")
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Error reading request body: %v", err)
+			http.Error(w, "Unable to read request body", http.StatusBadRequest)
+			return
+		}
+
+		var notification drive.Channel
+		if err := json.Unmarshal(body, &notification); err != nil {
+			log.Printf("Error parsing request body: %v", err)
+			http.Error(w, "Unable to parse request body", http.StatusBadRequest)
+			return
+		}
+
+		log.Printf("Received notification for resource ID: %s", notification.ResourceId)
+
+		// Retrieve the file metadata
+		file, err := driveService.Files.Get(notification.ResourceId).Fields("name").Do()
+		if err != nil {
+			log.Printf("Error retrieving file metadata: %v", err)
+			http.Error(w, "Unable to retrieve file metadata", http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("New file identified: %s", file.Name)
+		fmt.Fprintln(w, "Notification received and processed.")
 	})
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
