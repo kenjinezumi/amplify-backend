@@ -26,5 +26,15 @@ RUN apt-get update && apt-get install -y ca-certificates
 # Copy the binary from the builder.
 COPY --from=builder /app/main /main
 
+# Copy the service account key file into the image.
+# Assuming the service-account-key.json is in the same directory as the Dockerfile.
+COPY ./service-account-key.json /app/service-account-key.json
+
+# Set the environment variable for Google Cloud credentials.
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
+
+# Expose the port for Cloud Run
+EXPOSE 8080
+
 # Run the web service on container startup.
 CMD ["/main"]
