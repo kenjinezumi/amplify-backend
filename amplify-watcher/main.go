@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"cloud.google.com/go/pubsub"
 	"github.com/google/uuid"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
@@ -25,6 +26,12 @@ type FileInfo struct {
 	FileName   string `json:"fileName"`
 	ResourceID string `json:"resourceId"`
 }
+
+var (
+	pubsubClient *pubsub.Client
+	topic        *pubsub.Topic
+	webhookURL   string
+)
 
 func main() {
 	ctx := context.Background()
@@ -49,15 +56,16 @@ func main() {
 
 	// Get configuration from environment variables
 	folderID := os.Getenv("DRIVE_FOLDER_ID")
-	topic := os.Getenv("PUBSUB_TOPIC")
-	webhookURL := os.Getenv("WEBHOOK_URL")
+	topicID := os.Getenv("PUBSUB_TOPIC")
+	webhookURL = os.Getenv("WEBHOOK_URL")
+	projectID := os.Getenv("PROJECT_ID")
 
 	// Check if all required environment variables are set
-	if folderID == "" || topic == "" || webhookURL == "" {
-		log.Fatal("Environment variables DRIVE_FOLDER_ID, PUBSUB_TOPIC, and WEBHOOK_URL must be set")
+	if folderID == "" || topicID == "" || webhookURL == "" || projectID == "" {
+		log.Fatal("Environment variables DRIVE_FOLDER_ID, PUBSUB_TOPIC, WEBHOOK_URL, and PROJECT_ID must be set")
 	}
 
-	log.Printf("Environment variables:\nDRIVE_FOLDER_ID=%s\nPUBSUB_TOPIC=%s\nWEBHOOK_URL=%s\n", folderID, topic, webhookURL)
+	log.Printf("Environment variables:\nDRIVE_FOLDER_ID=%s\nPUBSUB_TOPIC=%s\nWEBHOOK_URL=%s\nPROJECT_ID=%s\n", folderID, topicID, webhookURL, projectID)
 
 	// Generate a unique channel ID
 	channelID := uuid.New().String()
@@ -67,7 +75,7 @@ func main() {
 		Id:      channelID,
 		Type:    "web_hook",
 		Address: webhookURL,
-		Token:   topic,
+		Token:   topicID,
 	}
 
 	// Set up the watch on the folder
@@ -76,6 +84,20 @@ func main() {
 		log.Fatalf("Unable to set up watch: %v. Please check if the folder ID is correct and the service account has access to the folder.", err)
 	}
 	log.Println("Watch set up successfully")
+
+	// Initialize Pub/Sub client
+	pubsubClient, err = pubsub.NewClient(ctx, projectID)
+	if err != nil {
+		log.Fatalf("Failed to create Pub/Sub client: %v", err)
+	}
+	topic = pubsubClient.Topic(topicID)
+
+	go func() {
+		for {
+			listFiles(ctx, driveService, folderID)
+			time.Sleep(5 * time.Second) // Wait for 5 seconds before listing files again
+		}
+	}()
 
 	// Start HTTP server for handling notifications and health checks
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -107,21 +129,25 @@ func main() {
 		log.Printf("Received notification for resource ID: %s", notification.ResourceID)
 
 		// Retrieve the file metadata
-		file, err := driveService.Files.Get(notification.ResourceID).Fields("name").Do()
+		file, err := driveService.Files.Get(notification.ResourceID).Fields("name, mimeType, modifiedTime").Do()
 		if err != nil {
 			log.Printf("Error retrieving file metadata: %v", err)
 			http.Error(w, "Unable to retrieve file metadata", http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("File metadata: name=%s", file.Name)
+		// Check if the file is a Word document
+		if file.MimeType != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && file.MimeType != "application/msword" {
+			log.Printf("File %s is not a Word document, ignoring.", file.Name)
+			return
+		}
 
 		fileInfo := FileInfo{
 			FileName:   file.Name,
 			ResourceID: notification.ResourceID,
 		}
 
-		// Send the file information to the Cloud Function
+		// Publish the file information to the Pub/Sub topic
 		fileInfoBytes, err := json.Marshal(fileInfo)
 		if err != nil {
 			log.Printf("Error marshaling file info: %v", err)
@@ -129,21 +155,11 @@ func main() {
 			return
 		}
 
-		resp, err := http.Post(webhookURL, "application/json", bytes.NewBuffer(fileInfoBytes))
-		if err != nil {
-			log.Printf("Error sending file info to webhook: %v", err)
-			http.Error(w, "Unable to send file info to webhook", http.StatusInternalServerError)
-			return
-		}
-		defer resp.Body.Close()
+		topic.Publish(ctx, &pubsub.Message{
+			Data: fileInfoBytes,
+		})
 
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Non-OK HTTP status: %s", resp.Status)
-			http.Error(w, "Non-OK HTTP status from webhook", http.StatusInternalServerError)
-			return
-		}
-
-		log.Printf("New file identified: %s", file.Name)
+		log.Printf("Published message for file: %s", file.Name)
 		fmt.Fprintln(w, "Notification received and processed.")
 	})
 
@@ -159,5 +175,58 @@ func main() {
 	log.Printf("Listening on port %s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Failed to listen and serve: %v", err)
+	}
+}
+
+func listFiles(ctx context.Context, driveService *drive.Service, folderID string) {
+	// Get the list of files from Google Drive
+	files, err := driveService.Files.List().Q(fmt.Sprintf("'%s' in parents", folderID)).Fields("files(id, name, createdTime, modifiedTime, mimeType)").Do()
+	if err != nil {
+		log.Printf("Error listing files: %v", err)
+		return
+	}
+
+	// Log the list of files in the Drive folder
+	for _, file := range files.Files {
+		log.Printf("Scanning the drive.")
+
+		// Check if the file is new (created or modified within the last five seconds)
+		createdTime, err := time.Parse(time.RFC3339, file.CreatedTime)
+		if err != nil {
+			log.Printf("Error parsing created time: %v", err)
+			continue
+		}
+
+		modifiedTime, err := time.Parse(time.RFC3339, file.ModifiedTime)
+		if err != nil {
+			log.Printf("Error parsing modified time: %v", err)
+			continue
+		}
+
+		if time.Since(createdTime) <= 5*time.Second || time.Since(modifiedTime) <= 5*time.Second {
+			// Check if the file is a Word document
+			// if file.MimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.MimeType == "application/msword" {
+			log.Printf("File ID: %s, Name: %s, Created Time: %s, Modified Time: %s is a new or modified file!!!", file.Id, file.Name, file.CreatedTime, file.ModifiedTime)
+			fileInfo := FileInfo{
+				FileName:   file.Name,
+				ResourceID: file.Id,
+			}
+
+			// Publish the file information to the Pub/Sub topic
+			fileInfoBytes, err := json.Marshal(fileInfo)
+			if err != nil {
+				log.Printf("Error marshaling file info: %v", err)
+				continue
+			}
+
+			topic.Publish(ctx, &pubsub.Message{
+				Data: fileInfoBytes,
+			})
+
+			log.Printf("Published message for file: %s", file.Name)
+			// } else {
+			// 	log.Printf("File ID: %s, Name: %s is not a Word document, ignoring.", file.Id, file.Name)
+			// }
+		}
 	}
 }
